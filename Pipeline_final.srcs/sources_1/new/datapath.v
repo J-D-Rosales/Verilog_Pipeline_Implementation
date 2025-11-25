@@ -7,6 +7,8 @@ module datapath(input  clk, reset,
                 input  RegWriteW,
                 input  [1:0]  ImmSrcD, 
                 input  [2:0]  ALUControlE,
+                input FPRegWriteW,   // NUEVO
+                input [2:0] FPUControlE, // NUEVO
 //inputs de la memoria
                 input  [31:0] ReadDataM,
                 input  [31:0] InstrF,
@@ -18,13 +20,7 @@ module datapath(input  clk, reset,
                 output [31:0] WriteDataM,
                 
                 // outputs para el hazard unit
-                output [4:0] Rs1E,
-                output [4:0] Rs2E,
-                output [4:0] RdM,
-                output [4:0] RdW,
-                output [4:0] Rs1D,
-                output [4:0] Rs2D,
-                output [4:0] RdE,
+                output [4:0] Rs1E, Rs2E, RdM, RdW, Rs1D, Rs2D, RdE,
                 // inputs del hazard unit
                 input [1:0] ForwardAE, ForwardBE,
                 input StallF,StallD,FlushE,FlushD
@@ -70,13 +66,15 @@ module datapath(input  clk, reset,
  
  wire [31:0] ImmExtD; 
  wire [31:0] RD1D, RD2D;  
- 
+ wire [31:0] FRD1D, FRD2D;     // NUEVO: Datos de regfile FP
 // variables para execute
- wire [31:0] RD1E, RD2E, PCE, ImmExtE, PCPlus4E;
+ wire [31:0] RD1E, RD2E, FRD1E, FRD2E, PCE, ImmExtE, PCPlus4E;
+
+/* Ya esta en la declaracion del modulo: 
  wire [4:0] RdE;  // ✅ 5 bits para registro destino
 
-// del hazard
- wire [4:0] Rs1D,Rs2D,Rs1E,Rs2E;
+//del hazard
+ wire [4:0] Rs1D,Rs2D,Rs1E,Rs2E;*/
 
  assign Rs1D = InstrD[19:15];
  assign Rs2D = InstrD[24:20];
@@ -91,6 +89,18 @@ module datapath(input  clk, reset,
     .rd1(RD1D), 
     .rd2(RD2D)
   ); 
+
+  // NUEVO: Register file FLOTANTE
+fp_regfile fprf(
+    .clk(clk),
+    .we3(FPRegWriteW),
+    .a1(InstrD[19:15]),
+    .a2(InstrD[24:20]),
+    .a3(RdW),
+    .wd3(FPResultW),
+    .rd1(FRD1D),
+    .rd2(FRD2D)
+);
  
   extend ext(
     .instr(InstrD[31:7]), 
@@ -104,12 +114,14 @@ module datapath(input  clk, reset,
     .clr(FlushE),
     .RD1D(RD1D),
     .RD2D(RD2D),
+    .FRD1D(FRD1D), .FRD2D(FRD2D),  // NUEVO
     .PCD(PCD),
     .RdD(InstrD[11:7]),  // ✅ 5 bits
     .ImmExtD(ImmExtD),
     .PCPlus4D(PCPlus4D),
     .RD1E(RD1E),
     .RD2E(RD2E),
+    .FRD1E(FRD1E), .FRD2E(FRD2E),  // NUEVO
     .PCE(PCE),
     .RdE(RdE),  // ✅ 5 bits
     .ImmExtE(ImmExtE),
@@ -120,6 +132,7 @@ module datapath(input  clk, reset,
     .Rs2D(Rs2D),
     .Rs1E(Rs1E),
     .Rs2E(Rs2E)
+
 );
 
 //_____________________________________________
@@ -127,12 +140,13 @@ module datapath(input  clk, reset,
 //_____________________________
 
  wire [31:0] SrcAE, SrcBE, WriteDataE, ALUResultE; 
+ wire [31:0] FPSrcAE, FPSrcBE, FPResultE;  // NUEVO
  wire [31:0] PCTargetE;
+wire [31:0] FPResultM, FPResultW;         // NUEVO
 
 
 // wires que salen de los registros
  wire [31:0] PCPlus4M;
- wire [4:0] RdM;  // ✅ 5 bits
   
  // muxes de 3 para la salida de SrA y SrcB 
 // 1. Mux para el Operando A (SrcAE)
@@ -169,6 +183,29 @@ module datapath(input  clk, reset,
     .result(ALUResultE), 
     .zero(ZeroE)
   ); 
+
+  // ========== FPU ==========
+// NUEVO: Forwarding para operandos FP
+mux3 #(WIDTH) FPSrcAmux(
+    .d0(FRD1E), .d1(FPResultW), .d2(FPResultM),
+    .s(ForwardAE), .y(FPSrcAE)
+);
+
+mux3 #(WIDTH) FPSrcBmux(
+    .d0(FRD2E), .d1(FPResultW), .d2(FPResultM),
+    .s(ForwardBE), .y(FPSrcBE)
+);
+
+// NUEVO: Instancia de la FPU
+fpu_top fpu(
+    .op_a(FPSrcAE),
+    .op_b(FPSrcBE),
+    .op_code(FPUControlE),
+    .round_mode(1'b0),  // RNE
+    .result(FPResultE),
+    .flags()  // Flags no usados por ahora
+);
+
  
   adder pcaddbranch(
     .a(PCE), 
@@ -180,10 +217,12 @@ module datapath(input  clk, reset,
     .clk(clk),
     .reset(reset),
     .ALUResultE(ALUResultE),
+    .FPResultE(FPResultE),      // NUEVO
     .WriteDataE(WriteDataE),
     .RdE(RdE),  // ✅ 5 bits
     .PCPlus4E(PCPlus4E),
     .ALUResultM(ALUResultM),
+    .FPResultM(FPResultM),      // NUEVO
     .WriteDataM(WriteDataM),
     .RdM(RdM),  // ✅ 5 bits
     .PCPlus4M(PCPlus4M)
@@ -194,7 +233,6 @@ module datapath(input  clk, reset,
 //_______________________________________
 
  wire [31:0] ReadDataW, PCPlus4W, ALUResultW;
- wire [4:0] RdW;  // ✅ 5 bits
  wire [31:0] ResultW;
     
   reg_memory_to_writeback reg_memory_to_writeback_instance(
@@ -202,14 +240,18 @@ module datapath(input  clk, reset,
     .reset(reset),
     .ReadDataM(ReadDataM),
     .ALUResultM(ALUResultM),
+    .FPResultM(FPResultM),      // NUEVO
     .PCPlus4M(PCPlus4M),
     .RdM(RdM),  // ✅ 5 bits
     .ReadDataW(ReadDataW),
     .ALUResultW(ALUResultW),
+    .FPResultW(FPResultW),      // NUEVO
     .PCPlus4W(PCPlus4W),
     .RdW(RdW)  // ✅ 5 bits
   );
-    
+
+  // Mux para resultado ENTERO
+
   mux3 #(WIDTH) resultmux(
     .d0(ALUResultW), 
     .d1(ReadDataW), 
@@ -217,7 +259,8 @@ module datapath(input  clk, reset,
     .s(ResultSrcW), 
     .y(ResultW)
   ); 
-
+/* NOTA: FPResultW se escribe directamente en fprf 
+ya que utiliza un registro independiente de la ALU entera */
   mux2 #(WIDTH) pcmux(
     .d0(PCPlus4F), 
     .d1(PCTargetE), 

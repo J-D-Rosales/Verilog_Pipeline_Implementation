@@ -14,6 +14,10 @@ module pipeline(input  clk, reset,
   wire [1:0] ResultSrcW, ImmSrcD; 
   wire [2:0] ALUControlE; 
   wire PCSrcE; 
+
+    // NUEVAS señales FP
+  wire FPRegWriteW, FPRegWriteM;
+  wire [2:0] FPUControlE;
   
   // 🛑 CABLES DE RIESGO (HAZARD)
   // Asegúrate de que NO estén duplicados ni sean de 1 bit si son buses
@@ -33,14 +37,19 @@ module pipeline(input  clk, reset,
     // CONEXIÓN CRÍTICA QUE PODRÍA FALTAR:
     .FlushE(FlushE), 
     
-    .op(InstrD[6:0]), .funct3(InstrD[14:12]), .funct7b5(InstrD[30]),
+    .op(InstrD[6:0]), .funct3(InstrD[14:12]), .funct7b5(InstrD[31:25]),
     .ZeroE(ZeroE),
     .ResultSrcW(ResultSrcW), .MemWriteM(MemWriteM),
     .PCSrcE(PCSrcE), .ALUSrcE(ALUSrcE), .RegWriteW(RegWriteW),
     .ImmSrcD(ImmSrcD), .ALUControlE(ALUControlE),
     
     .RegWriteM(RegWriteM),
-    .ResultSrcE_bit0(ResultSrcE_bit0)
+    .ResultSrcE_bit0(ResultSrcE_bit0),
+
+    // NUEVO: Control FP
+    .FPRegWriteW(FPRegWriteW),
+    .FPUControlE(FPUControlE),
+    .FPRegWriteM(FPRegWriteM)
   ); 
   
   // 2. INSTANCIA DEL DATAPATH
@@ -51,6 +60,10 @@ module pipeline(input  clk, reset,
     .ReadDataM(ReadDataM), .InstrF(InstrF),
     .ZeroE(ZeroE), .PCF(PCF), .InstrD(InstrD),
     .ALUResultM(ALUResultM), .WriteDataM(WriteDataM),
+
+        // NUEVO: Control FP
+    .FPRegWriteW(FPRegWriteW),
+    .FPUControlE(FPUControlE),
 
     // Hazard Connections
     .StallF(StallF), .StallD(StallD), .FlushE(FlushE), .FlushD(FlushD),
@@ -64,7 +77,8 @@ module pipeline(input  clk, reset,
     .Rs1E(Rs1E), .Rs2E(Rs2E), .RdM(RdM), .RdW(RdW),
     .Rs1D(Rs1D), .Rs2D(Rs2D), .RdE(RdE),
     .PCSrcE(PCSrcE),
-    .RegWriteM(RegWriteM), .RegWriteW(RegWriteW),
+    .RegWriteM(RegWriteM | FPRegWriteM),  // MODIFICADO: Considerar FP
+    .RegWriteW(RegWriteW | FPRegWriteW),  // MODIFICADO: Considerar FP    
     .ResultSrcE_bit0(ResultSrcE_bit0),
     
     .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),

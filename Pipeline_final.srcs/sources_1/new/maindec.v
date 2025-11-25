@@ -6,7 +6,10 @@ module maindec(input  [6:0] op,
                output Branch, ALUSrcD,
                output RegWrite, Jump,
                output [1:0] ImmSrc, 
-               output [1:0] ALUOp); 
+               output [1:0] ALUOp, 
+                   // NUEVAS señales para FP
+    output reg FPOp,        // Indica si es operación FP
+    output reg FPRegWrite);   // Write enable para regfile FP
   
   reg [10:0] controls; 
 
@@ -21,8 +24,14 @@ module maindec(input  [6:0] op,
       7'b1100011: controls = 11'b0_10_0_0_00_1_01_0; // beq
       7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I-type ALU (addi)
       7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
+      7'b1010011: begin
+                // NUEVO valor: resultado de FPU (ResultSrc = 2'b11)
+                //Indica operación FP ( ALUOp = 2'b11)  
+                controls = 11'b0_00_0_0_11_0_11_0; 
+                FPOp = 1;           // Habilitar FPU
+                FPRegWrite = 1;     // Escribir en regfile FP
+      end
       
-      // 🛑 ESTO ARREGLA TU PROBLEMA DE X:
       // Cuando entra un Flush (op=0), sacamos 0 en todo (NOP).
       default:    controls = 11'b0_00_0_0_10_0_00_0; 
     endcase

@@ -24,7 +24,7 @@ module controller(
                   input reset,
                   input  [6:0] op,
                   input  [2:0] funct3,
-                  input        funct7b5,
+                  input [6:0] funct7,
                   input        ZeroE,
                   input        FlushE,
                   // señales para el datapath
@@ -35,9 +35,15 @@ module controller(
                   output [1:0] ImmSrcD, 
                   output [2:0] ALUControlE,
                   
+                  // NUEVAS señales FP
+                  output FPRegWriteW,
+                  output [2:0] FPUControlE,
+
                   // para el hazard unit
                   output RegWriteM, 
-                  output ResultSrcE_bit0
+                  output ResultSrcE_bit0,
+                  // NUEVO: semejante al register file anterior pero ahora para FP
+                  output FPRegWriteM  
                   );
   //_____________________
   // fase de DEcode 
@@ -51,10 +57,13 @@ module controller(
   wire [2:0] ALUControlD; //c
   wire ALUSrcD; //c
   wire [1:0] ALUOp; 
-  
+   // NUEVAS señales FP
+  wire FPOpD;
+  wire FPRegWriteD;
+  wire [2:0] FPUControlD;
+
   maindec md(
     .op(op), 
-    
     .ResultSrc(ResultSrcD), 
     .MemWrite(MemWriteD), 
     .Branch(BranchD),
@@ -62,20 +71,29 @@ module controller(
     .RegWrite(RegWriteD), 
     .Jump(JumpD), 
     .ImmSrc(ImmSrcD), //c
-    .ALUOp(ALUOp)
+    .ALUOp(ALUOp),
+    // Señales FP
+    .FPOp(FPOpD),
+    .FPRegWrite(FPRegWriteD)
   ); 
   
 
   aludec  ad(
     .opb5(op[5]), 
     .funct3(funct3), 
-    .funct7b5(funct7b5),
+    .funct7b5(funct7[5]),
      
     .ALUOp(ALUOp), 
     .ALUControl(ALUControlD)
   );
    
-   
+  // FPU decoder
+  fpu_dec fpudec(
+    .funct7(funct7),  // Reconstruir funct7
+    .funct3(funct3),
+    .opcode(op),
+    .FPUControl(FPUControlD)
+);
   //_______________________________________________________
   // stage de execute---------------- decode to execute
   //______________________________________________________ 
@@ -85,34 +103,40 @@ module controller(
   wire JumpE;
   wire MemWriteE; //c
   wire BranchE;
+  wire FPRegWriteE;
+
   // ALUCOntrolE sale como output
   // ALUSrcE sale como output
-  wire ResultSrcE_bit0;
-  wire FlushE;
   assign ResultSrcE_bit0 = ResultSrcE[0];
   
   reg_decode_to_execute_control reg_decode_to_execute_control_instance(
-    .clk(clk),
-    .reset(reset),
-    // --------- CONTROL (desde etapa D) ---------
-    .RegWriteD(RegWriteD),
-    .ResultSrcD(ResultSrcD),//[1:0]
-    .MemWriteD(MemWriteD), // 
-    .JumpD(JumpD),
-    .BranchD(BranchD),
-    .ALUControlD(ALUControlD), // [2:0]
-    .ALUSrcD(ALUSrcD),
-    .clr(FlushE),
-        // --------- CONTROL (hacia etapa E) --------
-    .RegWriteE(RegWriteE),
-    .ResultSrcE(ResultSrcE),
-    .MemWriteE(MemWriteE),
-    .JumpE(JumpE),
-    .BranchE(BranchE),
-    .ALUControlE(ALUControlE),
-    .ALUSrcE(ALUSrcE)
+            .clk(clk),
+        .reset(reset),
+        .clr(FlushE),
+        
+        // Control desde Decode
+        .RegWriteD(RegWriteD),
+        .ResultSrcD(ResultSrcD),
+        .MemWriteD(MemWriteD),
+        .JumpD(JumpD),
+        .BranchD(BranchD),
+        .ALUControlD(ALUControlD),
+        .ALUSrcD(ALUSrcD),
+        .FPRegWriteD(FPRegWriteD),      // NUEVO
+        .FPUControlD(FPUControlD),      // NUEVO
+        
+        // Control hacia Execute
+        .RegWriteE(RegWriteE),
+        .ResultSrcE(ResultSrcE),
+        .MemWriteE(MemWriteE),
+        .JumpE(JumpE),
+        .BranchE(BranchE),
+        .ALUControlE(ALUControlE),
+        .ALUSrcE(ALUSrcE),
+        .FPRegWriteE(FPRegWriteE),      // NUEVO
+        .FPUControlE(FPUControlE)       // NUEVO
   );
-  
+
     
   assign PCSrcE = (BranchE & ZeroE) | JumpE;
   //________________ fase de Memoery--- Executo to memeory
@@ -120,22 +144,24 @@ module controller(
   
   
   wire [1:0] ResultSrcM; //c
-  wire RegWriteM;
   // MemWriteM es un output
   
   
   reg_execute_to_memory_control reg_execute_to_memory_control_instance(
-    .clk(clk),
-    .reset(reset),
-    // --------- CONTROL desde etapa E ---------
-    .RegWriteE(RegWriteE),
-    .ResultSrcE(ResultSrcE),
-    .MemWriteE(MemWriteE),
-
-    // --------- CONTROL hacia etapa M --------
-    .RegWriteM(RegWriteM),
-    .ResultSrcM(ResultSrcM),
-    .MemWriteM(MemWriteM)
+        .clk(clk),
+        .reset(reset),
+        
+        // Control desde Execute
+        .RegWriteE(RegWriteE),
+        .ResultSrcE(ResultSrcE),
+        .MemWriteE(MemWriteE),
+        .FPRegWriteE(FPRegWriteE),      // NUEVO
+        
+        // Control hacia Memory
+        .RegWriteM(RegWriteM),
+        .ResultSrcM(ResultSrcM),
+        .MemWriteM(MemWriteM),
+        .FPRegWriteM(FPRegWriteM)       // NUEVO
   );
   
   
@@ -145,16 +171,18 @@ module controller(
   // REgWriteW y ResultSrcW son outputs
   
   reg_memory_to_writeback_control reg_memory_to_writeback_control_instance(
-    .clk(clk),
-    .reset(reset),
-
-    // --------- CONTROL desde etapa M ---------
-    .RegWriteM(RegWriteM),
-    .ResultSrcM(ResultSrcM),
-
-    // --------- CONTROL hacia etapa W --------
-    .RegWriteW(RegWriteW),
-    .ResultSrcW(ResultSrcW)
+        .clk(clk),
+        .reset(reset),
+        
+        // Control desde Memory
+        .RegWriteM(RegWriteM),
+        .ResultSrcM(ResultSrcM),
+        .FPRegWriteM(FPRegWriteM),      // NUEVO
+        
+        // Control hacia Writeback
+        .RegWriteW(RegWriteW),
+        .ResultSrcW(ResultSrcW),
+        .FPRegWriteW(FPRegWriteW)       // NUEVO
   );
  
   
