@@ -7,6 +7,7 @@ module datapath(input  clk, reset,
                 input  RegWriteW,
                 input  [1:0]  ImmSrcD, 
                 input  [2:0]  ALUControlE,
+                input FPRegWriteM, // NUEVO
                 input FPRegWriteW,   // NUEVO
                 input [2:0] FPUControlE, // NUEVO
 //inputs de la memoria
@@ -185,15 +186,24 @@ wire [31:0] FPResultM, FPResultW;         // NUEVO
   ); 
 
   // ========== FPU ==========
-// NUEVO: Forwarding para operandos FP
+  wire [31:0] ForwardDataM = FPRegWriteM ? FPResultM : ALUResultM;
+wire [31:0] ForwardDataW = FPRegWriteW ? FPResultW : ResultW;
+
+// Forwarding FP separado
 mux3 #(WIDTH) FPSrcAmux(
-    .d0(FRD1E), .d1(FPResultW), .d2(FPResultM),
-    .s(ForwardAE), .y(FPSrcAE)
+    .d0(FRD1E),
+    .d1(FPResultW),
+    .d2(FPResultM),
+    .s(ForwardAE_FP),  // ✅ Señal independiente
+    .y(FPSrcAE)
 );
 
 mux3 #(WIDTH) FPSrcBmux(
-    .d0(FRD2E), .d1(FPResultW), .d2(FPResultM),
-    .s(ForwardBE), .y(FPSrcBE)
+    .d0(FRD2E),
+    .d1(FPResultW),
+    .d2(FPResultM),
+    .s(ForwardBE_FP),  // ✅ Señal independiente
+    .y(FPSrcBE)
 );
 
 // NUEVO: Instancia de la FPU

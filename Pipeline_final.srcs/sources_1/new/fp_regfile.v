@@ -12,6 +12,10 @@ module fp_regfile(
         for (i = 0; i < 32; i = i + 1) begin
             fp_regs[i] = 32'h00000000;
         end
+        fp_regs[1] = 32'h40200000; // f1 = 2.5
+        fp_regs[2] = 32'h40400000; // f2 = 3.0
+        fp_regs[3] = 32'h3F800000; // f3 = 1.0
+        fp_regs[4] = 32'h40A00000; // f4 = 5.0
     end
     // Lectura asíncrona
     assign rd1 = (a1 != 0) ? fp_regs[a1] : 0;

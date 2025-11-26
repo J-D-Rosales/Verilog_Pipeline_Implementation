@@ -97,47 +97,6 @@ module aludec(input  opb5,
 endmodule
 
 // === File: controller.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/17/2025 10:54:15 AM
-// Design Name: 
-// Module Name: controller
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/17/2025 10:54:15 AM
-// Design Name: 
-// Module Name: controller
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
@@ -329,8 +288,6 @@ module controller(
 endmodule
 
 
-
-
 module datapath(input  clk, reset,
 //________________ inputs del controller
                 input  [1:0]  ResultSrcW, 
@@ -338,6 +295,7 @@ module datapath(input  clk, reset,
                 input  RegWriteW,
                 input  [1:0]  ImmSrcD, 
                 input  [2:0]  ALUControlE,
+                input FPRegWriteM, // NUEVO
                 input FPRegWriteW,   // NUEVO
                 input [2:0] FPUControlE, // NUEVO
 //inputs de la memoria
@@ -354,6 +312,7 @@ module datapath(input  clk, reset,
                 output [4:0] Rs1E, Rs2E, RdM, RdW, Rs1D, Rs2D, RdE,
                 // inputs del hazard unit
                 input [1:0] ForwardAE, ForwardBE,
+                input [1:0] ForwardAE_FP, ForwardBE_FP,
                 input StallF,StallD,FlushE,FlushD
                 );
   
@@ -516,15 +475,24 @@ wire [31:0] FPResultM, FPResultW;         // NUEVO
   ); 
 
   // ========== FPU ==========
-// NUEVO: Forwarding para operandos FP
+  wire [31:0] ForwardDataM = FPRegWriteM ? FPResultM : ALUResultM;
+wire [31:0] ForwardDataW = FPRegWriteW ? FPResultW : ResultW;
+
+// Forwarding FP separado
 mux3 #(WIDTH) FPSrcAmux(
-    .d0(FRD1E), .d1(FPResultW), .d2(FPResultM),
-    .s(ForwardAE), .y(FPSrcAE)
+    .d0(FRD1E),
+    .d1(FPResultW),
+    .d2(FPResultM),
+    .s(ForwardAE_FP),  // ✅ Señal independiente
+    .y(FPSrcAE)
 );
 
 mux3 #(WIDTH) FPSrcBmux(
-    .d0(FRD2E), .d1(FPResultW), .d2(FPResultM),
-    .s(ForwardBE), .y(FPSrcBE)
+    .d0(FRD2E),
+    .d1(FPResultW),
+    .d2(FPResultM),
+    .s(ForwardBE_FP),  // ✅ Señal independiente
+    .y(FPSrcBE)
 );
 
 // NUEVO: Instancia de la FPU
@@ -692,43 +660,56 @@ module fpu_dec(
 endmodule
 
 // === File: hazard_unit.v ===
-  
-
-module hazard_unit(
-    input [4:0] Rs1E, Rs2E, 
-    input [4:0] Rs1D, Rs2D, 
-    input [4:0] RdM, RdW, RdE,
+  module hazard_unit(
+    input [4:0] Rs1E, Rs2E, Rs1D, Rs2D, RdM, RdW, RdE,
     input RegWriteM, RegWriteW,
-    input ResultSrcE_bit0, 
-    input PCSrcE,
+    input FPRegWriteM, FPRegWriteW,
+    input ResultSrcE_bit0, PCSrcE,
     
     output reg [1:0] ForwardAE, ForwardBE,
+    output reg [1:0] ForwardAE_FP, ForwardBE_FP,  // ✅ NUEVO
     output wire StallF, StallD, FlushE, FlushD
-    );
-    
-    // Forwarding
-    always @(*) begin
-        if      ((Rs1E == RdM) && RegWriteM && (Rs1E != 0)) ForwardAE = 2'b10;
-        else if ((Rs1E == RdW) && RegWriteW && (Rs1E != 0)) ForwardAE = 2'b01;
-        else                                                ForwardAE = 2'b00;
+);
 
-        if      ((Rs2E == RdM) && RegWriteM && (Rs2E != 0)) ForwardBE = 2'b10;
-        else if ((Rs2E == RdW) && RegWriteW && (Rs2E != 0)) ForwardBE = 2'b01;
-        else                                                ForwardBE = 2'b00;
-    end
+// ✅ Forwarding ENTERO (excluye writes FP)
+always @(*) begin
+    ForwardAE = 2'b00;
+    ForwardBE = 2'b00;
+    
+    // Forward desde Memory (solo si es write entero)
+    if ((Rs1E == RdM) && RegWriteM && !FPRegWriteM && (Rs1E != 0))
+        ForwardAE = 2'b10;
+    else if ((Rs1E == RdW) && RegWriteW && !FPRegWriteW && (Rs1E != 0))
+        ForwardAE = 2'b01;
+    
+    if ((Rs2E == RdM) && RegWriteM && !FPRegWriteM && (Rs2E != 0))
+        ForwardBE = 2'b10;
+    else if ((Rs2E == RdW) && RegWriteW && !FPRegWriteW && (Rs2E != 0))
+        ForwardBE = 2'b01;
+end
 
-    // STALLS Y FLUSHES BLINDADOS (ANTI-X)
-    // Usamos (=== 1'b1) para que si la señal es 'x', se trate como '0'
+// ✅ Forwarding FP (solo writes FP)
+always @(*) begin
+    ForwardAE_FP = 2'b00;
+    ForwardBE_FP = 2'b00;
     
-    wire lwStall;
-    assign lwStall = (ResultSrcE_bit0 === 1'b1) ? ((Rs1D == RdE) | (Rs2D == RdE)) : 1'b0;
+    if ((Rs1E == RdM) && FPRegWriteM && (Rs1E != 0))
+        ForwardAE_FP = 2'b10;
+    else if ((Rs1E == RdW) && FPRegWriteW && (Rs1E != 0))
+        ForwardAE_FP = 2'b01;
     
-    assign StallF = lwStall;
-    assign StallD = lwStall;
-    
-    // Si PCSrcE es 'x', NO hacemos flush. Solo flush si es 1 confirmado.
-    assign FlushE = lwStall | (PCSrcE === 1'b1); 
-    assign FlushD = (PCSrcE === 1'b1); 
+    if ((Rs2E == RdM) && FPRegWriteM && (Rs2E != 0))
+        ForwardBE_FP = 2'b10;
+    else if ((Rs2E == RdW) && FPRegWriteW && (Rs2E != 0))
+        ForwardBE_FP = 2'b01;
+end
+
+// Stalls (sin cambios)
+wire lwStall = (ResultSrcE_bit0 === 1'b1) ? ((Rs1D == RdE) | (Rs2D == RdE)) : 1'b0;
+assign StallF = lwStall;
+assign StallD = lwStall;
+assign FlushE = lwStall | (PCSrcE === 1'b1);
+assign FlushD = (PCSrcE === 1'b1);
 
 endmodule
 
@@ -747,42 +728,48 @@ endmodule
 
 // === File: maindec.v ===
   
-
-module maindec(input  [6:0] op,
-               output [1:0] ResultSrc,
-               output MemWrite,
-               output Branch, ALUSrcD,
-               output RegWrite, Jump,
-               output [1:0] ImmSrc, 
-               output [1:0] ALUOp, 
-                   // NUEVAS señales para FP
-    output reg FPOp,        // Indica si es operación FP
-    output reg FPRegWrite);   // Write enable para regfile FP
+module maindec(
+    input  [6:0] op,
+    output [1:0] ResultSrc,
+    output MemWrite,
+    output Branch, ALUSrcD,
+    output RegWrite, Jump,
+    output [1:0] ImmSrc, 
+    output [1:0] ALUOp, 
+    output reg FPOp,
+    output reg FPRegWrite
+);
   
-  reg [10:0] controls; 
+    reg [10:0] controls; 
+    assign {RegWrite, ImmSrc, ALUSrcD, MemWrite,
+            ResultSrc, Branch, ALUOp, Jump} = controls; 
 
-  assign {RegWrite, ImmSrc, ALUSrcD, MemWrite,
-          ResultSrc, Branch, ALUOp, Jump} = controls; 
-
-  always @* case(op)
-    // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
-      7'b0000011: controls = 11'b1_00_1_0_01_0_00_0; // lw
-      7'b0100011: controls = 11'b0_01_1_1_00_0_00_0; // sw
-      7'b0110011: controls = 11'b1_xx_0_0_00_0_10_0; // R-type
-      7'b1100011: controls = 11'b0_10_0_0_00_1_01_0; // beq
-      7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I-type ALU (addi)
-      7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
-      7'b1010011: begin
-                // NUEVO valor: resultado de FPU (ResultSrc = 2'b11)
-                //Indica operación FP ( ALUOp = 2'b11)  
-                controls = 11'b0_00_0_0_11_0_11_0; 
-                FPOp = 1;           // Habilitar FPU
-                FPRegWrite = 1;     // Escribir en regfile FP
-      end
-      
-      // Cuando entra un Flush (op=0), sacamos 0 en todo (NOP).
-      default:    controls = 11'b0_00_0_0_10_0_00_0; 
-    endcase
+    always @(*) begin
+        // ✅ DEFAULTS para evitar 'X'
+        FPOp = 1'b0;
+        FPRegWrite = 1'b0;
+        
+        case(op)
+            7'b0000011: controls = 11'b1_00_1_0_01_0_00_0; // lw
+            7'b0100011: controls = 11'b0_01_1_1_00_0_00_0; // sw
+            7'b0110011: controls = 11'b1_xx_0_0_00_0_10_0; // R-type
+            7'b1100011: controls = 11'b0_10_0_0_00_1_01_0; // beq
+            7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I-type ALU
+            7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
+            
+            7'b1010011: begin  // ✅ INSTRUCCIONES FP
+                controls = 11'b0_00_0_0_11_0_11_0;
+                FPOp = 1'b1;
+                FPRegWrite = 1'b1;
+            end
+            
+            default: begin
+                controls = 11'b0_00_0_0_10_0_00_0;
+                FPOp = 1'b0;
+                FPRegWrite = 1'b0;
+            end
+        endcase
+    end
 endmodule
 
 // === File: mux2.v ===
@@ -807,7 +794,6 @@ endmodule
 
 // === File: pipeline.v ===
   
-
 module pipeline(input  clk, reset,
                 output [31:0] PCF,
                 input  [31:0] InstrF,
@@ -831,6 +817,7 @@ module pipeline(input  clk, reset,
   // Asegúrate de que NO estén duplicados ni sean de 1 bit si son buses
   wire [4:0] Rs1E, Rs2E, RdM, RdW, RdE, Rs1D, Rs2D;
   wire [1:0] ForwardAE, ForwardBE;
+  wire [1:0] ForwardAE_FP, ForwardBE_FP; 
   wire StallF, StallD, FlushE, FlushD;
   wire ResultSrcE_bit0;
   
@@ -872,12 +859,13 @@ module pipeline(input  clk, reset,
         // NUEVO: Control FP
     .FPRegWriteW(FPRegWriteW),
     .FPUControlE(FPUControlE),
-
+    .FPRegWriteM(FPRegWriteM),   
     // Hazard Connections
     .StallF(StallF), .StallD(StallD), .FlushE(FlushE), .FlushD(FlushD),
     .Rs1D(Rs1D), .Rs2D(Rs2D), 
     .Rs1E(Rs1E), .Rs2E(Rs2E), .RdM(RdM), .RdW(RdW), .RdE(RdE),
-    .ForwardAE(ForwardAE), .ForwardBE(ForwardBE)
+    .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),
+    .ForwardAE_FP(ForwardAE_FP), .ForwardBE_FP(ForwardBE_FP) 
   );
   
   // 3. INSTANCIA DE HAZARD UNIT
@@ -885,11 +873,13 @@ module pipeline(input  clk, reset,
     .Rs1E(Rs1E), .Rs2E(Rs2E), .RdM(RdM), .RdW(RdW),
     .Rs1D(Rs1D), .Rs2D(Rs2D), .RdE(RdE),
     .PCSrcE(PCSrcE),
-    .RegWriteM(RegWriteM | FPRegWriteM),  // MODIFICADO: Considerar FP
-    .RegWriteW(RegWriteW | FPRegWriteW),  // MODIFICADO: Considerar FP    
+    .RegWriteM(RegWriteM),  // MODIFICADO: Considerar FP
+    .RegWriteW(RegWriteW),  // MODIFICADO: Considerar FP    
     .ResultSrcE_bit0(ResultSrcE_bit0),
-    
+    .FPRegWriteM(FPRegWriteM),  // NUEVO PARA FPU
+    .FPRegWriteW(FPRegWriteW), // NUEVO PARA FPU
     .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),
+    .ForwardAE_FP(ForwardAE_FP), .ForwardBE_FP(ForwardBE_FP),
     .StallF(StallF), .StallD(StallD), 
     .FlushE(FlushE), .FlushD(FlushD)
   );
@@ -929,31 +919,45 @@ module regfile(input  clk,
                ((a2 == a3) && we3) ? wd3 : rf[a2];
 
 endmodule
-
 module fp_regfile(
     input clk,
-    input we3,              // Write enable
-    input [4:0] a1, a2, a3, // Direcciones rs1, rs2, rd
-    input [31:0] wd3,       // Dato a escribir
-    output [31:0] rd1, rd2  // Datos leídos
+    input we3,
+    input [4:0] a1, a2, a3,
+    input [31:0] wd3,
+    output [31:0] rd1, rd2
 );
-    reg [31:0] fp_regs [31:0]; // 32 registros flotantes
-    //Inicialización de registros a cero
-  	initial begin
+    reg [31:0] fp_regs [31:0];
+    
+    // ✅ INICIALIZACIÓN EXPLÍCITA
+    initial begin
         integer i;
         for (i = 0; i < 32; i = i + 1) begin
             fp_regs[i] = 32'h00000000;
         end
+        
+        // ✅ Pre-cargar valores de prueba
+        fp_regs[1] = 32'h40200000; // f1 = 2.5
+        fp_regs[2] = 32'h40400000; // f2 = 3.0
+        fp_regs[3] = 32'h3F800000; // f3 = 1.0
+        fp_regs[4] = 32'h40A00000; // f4 = 5.0
+        
+        $display("[fp_regfile] Registros FP inicializados:");
+        $display("  f1 = 0x%h", fp_regs[1]);
+        $display("  f2 = 0x%h", fp_regs[2]);
+        $display("  f3 = 0x%h", fp_regs[3]);
+        $display("  f4 = 0x%h", fp_regs[4]);
     end
-  
-    // Lectura asíncrona
-    assign rd1 = (a1 != 0) ? fp_regs[a1] : 0;
-    assign rd2 = (a2 != 0) ? fp_regs[a2] : 0;
+    
+    // Lectura asíncrona (sin protección de x0 para FP)
+    assign rd1 = fp_regs[a1];
+    assign rd2 = fp_regs[a2];
     
     // Escritura síncrona
     always @(posedge clk) begin
-        if (we3 && a3 != 0)
+        if (we3 && a3 != 0) begin
             fp_regs[a3] <= wd3;
+            $display("[fp_regfile] Escribiendo f%0d = 0x%h", a3, wd3);
+        end
     end
 endmodule
 // === File: reg_decode_to_execute.v ===
@@ -1340,114 +1344,114 @@ endmodule
 // de punto flotante de 32 bits, con soporte opcional de conversión 16-32 bits.
 // Todas las unidades funcionales son combinacionales.
 // ============================================================================
-module fpu_top (
-  input  wire [31:0] op_a,            // Operando A
-  input  wire [31:0] op_b,            // Operando B
-  input  wire [2:0]  op_code,         // 000 ADD, 001 SUB, 010 MUL, 011 DIV, 100 MIN, 101 MAX
-  input  wire        round_mode,      // reservado; los bloques usan RNE
-  output wire [31:0] result,          // Resultado (FP32)
-  output wire [4:0]  flags            // {invalid, div_by_zero, overflow, underflow, inexact}
-);
+    module fpu_top (
+    input  wire [31:0] op_a,            // Operando A
+    input  wire [31:0] op_b,            // Operando B
+    input  wire [2:0]  op_code,         // 000 ADD, 001 SUB, 010 MUL, 011 DIV, 100 MIN, 101 MAX
+    input  wire        round_mode,      // reservado; los bloques usan RNE
+    output wire [31:0] result,          // Resultado (FP32)
+    output wire [4:0]  flags            // {invalid, div_by_zero, overflow, underflow, inexact}
+    );
 
-  // Códigos de operación (actualizados para 3 bits y nuevas ops)
-  parameter OP_ADD = 3'b000;
-  parameter OP_SUB = 3'b001;
-  parameter OP_MUL = 3'b010;
-  parameter OP_DIV = 3'b011;
-  parameter OP_MIN = 3'b100;
-  parameter OP_MAX = 3'b101;
+    // Códigos de operación (actualizados para 3 bits y nuevas ops)
+    parameter OP_ADD = 3'b000;
+    parameter OP_SUB = 3'b001;
+    parameter OP_MUL = 3'b010;
+    parameter OP_DIV = 3'b011;
+    parameter OP_MIN = 3'b100;
+    parameter OP_MAX = 3'b101;
 
-  // -----------------------------
-  // Conversión de entradas (16->32 cuando mode_fp=0)
-  // -----------------------------
+    // -----------------------------
+    // Conversión de entradas (16->32 cuando mode_fp=0)
+    // -----------------------------
 
-  // -----------------------------
-  // Instancias de los bloques FP32 (puramente combinacionales)
-  // -----------------------------
-  wire [31:0] y_add, y_mul, y_div, y_minmax;
-  wire [4:0]  f_add, f_mul, f_div, f_minmax;
+    // -----------------------------
+    // Instancias de los bloques FP32 (puramente combinacionales)
+    // -----------------------------
+    wire [31:0] y_add, y_mul, y_div, y_minmax;
+    wire [4:0]  f_add, f_mul, f_div, f_minmax;
 
-  // Módulo unificado ADD/SUB con op_sel
-  // op_sel = 0 para ADD (op_code=000)
-  // op_sel = 1 para SUB (op_code=001)
-  wire op_sel_addsub = (op_code == OP_SUB) ? 1'b1 : 1'b0;
-  
-  fpu_add_fp32_vivado u_addsub (
-    .op_sel(op_sel_addsub),
-    .a(op_a), 
-    .b(op_b),
-    .result(y_add), 
-    .flags(f_add)
-  );
-
-  fpu_mul_fp32_vivado u_mul (
-    .a(op_a), 
-    .b(op_b),
-    .result(y_mul), 
-    .flags(f_mul)
-  );
-
-  fpu_div_fp32_vivado u_div (
-    .a(op_a), 
-    .b(op_b),
-    .result(y_div), 
-    .flags(f_div)
-  );
-
-  fpu_minmax_fp32_vivado u_minmax_inst (
-    .a(op_a), 
-    .b(op_b),
-    .is_max((op_code == OP_MAX) ? 1'b1 : 1'b0), // Conecta is_max según el op_code
-    .result(y_minmax), 
-    .flags(f_minmax)
-  );
-
-  // -----------------------------
-  // Selección del camino activo (FP32)
-  // -----------------------------
-  reg [31:0] y_sel;
-  reg [4:0]  f_sel;
-  
-  always @(*) begin
-    case (op_code)
-      OP_ADD: begin 
-        y_sel = y_add;    
-        f_sel = f_add;    
-      end
-      OP_SUB: begin 
-        y_sel = y_add;    // Misma salida del módulo unificado
-        f_sel = f_add;    
-      end
-      OP_MUL: begin 
-        y_sel = y_mul;    
-        f_sel = f_mul;    
-      end
-      OP_DIV: begin 
-        y_sel = y_div;    
-        f_sel = f_div;    
-      end
-      OP_MIN: begin 
-        y_sel = y_minmax; 
-        f_sel = f_minmax; 
-      end
-      OP_MAX: begin 
-        y_sel = y_minmax; 
-        f_sel = f_minmax; 
-      end
-      default: begin 
-        y_sel = 32'd0;   
-        f_sel = 5'd0;     
-      end
-    endcase
-  end
-
-  // -----------------------------
-  // Salidas (con soporte de mode_fp)
-  // -----------------------------
-  assign result = y_sel;
-  assign flags  = f_sel;  // OR de flags si hay conversión
+    // Módulo unificado ADD/SUB con op_sel
+    // op_sel = 0 para ADD (op_code=000)
+    // op_sel = 1 para SUB (op_code=001)
+    wire op_sel_addsub = (op_code == OP_SUB) ? 1'b1 : 1'b0;
     
-endmodule
+    fpu_add_fp32_vivado u_addsub (
+        .op_sel(op_sel_addsub),
+        .a(op_a), 
+        .b(op_b),
+        .result(y_add), 
+        .flags(f_add)
+    );
+
+    fpu_mul_fp32_vivado u_mul (
+        .a(op_a), 
+        .b(op_b),
+        .result(y_mul), 
+        .flags(f_mul)
+    );
+
+    fpu_div_fp32_vivado u_div (
+        .a(op_a), 
+        .b(op_b),
+        .result(y_div), 
+        .flags(f_div)
+    );
+
+    fpu_minmax_fp32_vivado u_minmax_inst (
+        .a(op_a), 
+        .b(op_b),
+        .is_max((op_code == OP_MAX) ? 1'b1 : 1'b0), // Conecta is_max según el op_code
+        .result(y_minmax), 
+        .flags(f_minmax)
+    );
+
+    // -----------------------------
+    // Selección del camino activo (FP32)
+    // -----------------------------
+    reg [31:0] y_sel;
+    reg [4:0]  f_sel;
+    
+    always @(*) begin
+        case (op_code)
+        OP_ADD: begin 
+            y_sel = y_add;    
+            f_sel = f_add;    
+        end
+        OP_SUB: begin 
+            y_sel = y_add;    // Misma salida del módulo unificado
+            f_sel = f_add;    
+        end
+        OP_MUL: begin 
+            y_sel = y_mul;    
+            f_sel = f_mul;    
+        end
+        OP_DIV: begin 
+            y_sel = y_div;    
+            f_sel = f_div;    
+        end
+        OP_MIN: begin 
+            y_sel = y_minmax; 
+            f_sel = f_minmax; 
+        end
+        OP_MAX: begin 
+            y_sel = y_minmax; 
+            f_sel = f_minmax; 
+        end
+        default: begin 
+            y_sel = 32'd0;   
+            f_sel = 5'd0;     
+        end
+        endcase
+    end
+
+    // -----------------------------
+    // Salidas (con soporte de mode_fp)
+    // -----------------------------
+    assign result = y_sel;
+    assign flags  = f_sel;  // OR de flags si hay conversión
+        
+    endmodule
 
 
 // ============================================================================
