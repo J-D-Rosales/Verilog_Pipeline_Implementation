@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 
 module pipeline(input  clk, reset,
                 output [31:0] PCF,
@@ -19,10 +18,11 @@ module pipeline(input  clk, reset,
   wire FPRegWriteW, FPRegWriteM;
   wire [2:0] FPUControlE;
   
-  // 🛑 CABLES DE RIESGO (HAZARD)
+  // CABLES DE RIESGO (HAZARD)
   // Asegúrate de que NO estén duplicados ni sean de 1 bit si son buses
   wire [4:0] Rs1E, Rs2E, RdM, RdW, RdE, Rs1D, Rs2D;
   wire [1:0] ForwardAE, ForwardBE;
+  wire [1:0] ForwardAE_FP, ForwardBE_FP; 
   wire StallF, StallD, FlushE, FlushD;
   wire ResultSrcE_bit0;
   
@@ -69,7 +69,8 @@ module pipeline(input  clk, reset,
     .StallF(StallF), .StallD(StallD), .FlushE(FlushE), .FlushD(FlushD),
     .Rs1D(Rs1D), .Rs2D(Rs2D), 
     .Rs1E(Rs1E), .Rs2E(Rs2E), .RdM(RdM), .RdW(RdW), .RdE(RdE),
-    .ForwardAE(ForwardAE), .ForwardBE(ForwardBE)
+    .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),
+    .ForwardAE_FP(ForwardAE_FP), .ForwardBE_FP(ForwardBE_FP) 
   );
   
   // 3. INSTANCIA DE HAZARD UNIT
@@ -83,6 +84,7 @@ module pipeline(input  clk, reset,
     .FPRegWriteM(FPRegWriteM),  // NUEVO PARA FPU
     .FPRegWriteW(FPRegWriteW), // NUEVO PARA FPU
     .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),
+    .ForwardAE_FP(ForwardAE_FP), .ForwardBE_FP(ForwardBE_FP),
     .StallF(StallF), .StallD(StallD), 
     .FlushE(FlushE), .FlushD(FlushD)
   );

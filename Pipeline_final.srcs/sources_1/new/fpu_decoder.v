@@ -1,5 +1,5 @@
 // Decodificador de operaciones FP
-// Convierte funct7 y funct3 en op_code para tu FPU
+// Convierte funct7 y funct3 en op_code para la FPU
 module fpu_dec(
     input [6:0] funct7,
     input [2:0] funct3,

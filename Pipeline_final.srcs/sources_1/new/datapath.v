@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 
 module datapath(input  clk, reset,
 //________________ inputs del controller
@@ -24,6 +23,7 @@ module datapath(input  clk, reset,
                 output [4:0] Rs1E, Rs2E, RdM, RdW, Rs1D, Rs2D, RdE,
                 // inputs del hazard unit
                 input [1:0] ForwardAE, ForwardBE,
+                input [1:0] ForwardAE_FP, ForwardBE_FP,
                 input StallF,StallD,FlushE,FlushD
                 );
   
@@ -31,8 +31,7 @@ module datapath(input  clk, reset,
 
 //_________________ fase de fetch
  wire [31:0] PCNextF, PCPlus4F; 
- wire [31:0] PCD, PCPlus4D;  // ✅ InstrD ya está como output, no redeclares
- 
+ wire [31:0] PCD, PCPlus4D;  
   // next PC logic
   flopr #(WIDTH) pcreg(
     .en(~StallF),
@@ -71,11 +70,6 @@ module datapath(input  clk, reset,
 // variables para execute
  wire [31:0] RD1E, RD2E, FRD1E, FRD2E, PCE, ImmExtE, PCPlus4E;
 
-/* Ya esta en la declaracion del modulo: 
- wire [4:0] RdE;  // ✅ 5 bits para registro destino
-
-//del hazard
- wire [4:0] Rs1D,Rs2D,Rs1E,Rs2E;*/
 
  assign Rs1D = InstrD[19:15];
  assign Rs2D = InstrD[24:20];

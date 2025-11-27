@@ -8,6 +8,7 @@ module regfile(input  clk,
 
   reg [31:0] rf[31:0]; 
 
+  // ESTO ES LO QUE TE FALTA: INICIALIZAR A CERO
   initial begin :hola
     integer i;
     for (i=0; i<32; i=i+1) begin

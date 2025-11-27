@@ -1,15 +1,10 @@
-// edaplaground.v
-// Concatenación de todos los archivos en sources_1/new
-// Generado automáticamente. Cada sección está precedida por un separador con el nombre del archivo.
 
-// === File: adder.v ===
 module adder(input  [31:0] a, b,
              output [31:0] y);
   
   assign y = a + b; 
 endmodule
 
-// === File: alu.v ===
 module alu(input  [31:0] a, b,
            input  [2:0]  alucontrol,
            output [31:0] result,
@@ -45,28 +40,6 @@ module alu(input  [31:0] a, b,
   assign zero = (result == 32'b0);
 endmodule
 
-// === File: aludec.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/17/2025 10:55:29 AM
-// Design Name: 
-// Module Name: aludec
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
 
 module aludec(input  opb5,
               input  [2:0] funct3,
@@ -95,28 +68,6 @@ module aludec(input  opb5,
                endcase
     endcase
 endmodule
-
-// === File: controller.v ===
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/17/2025 10:54:15 AM
-// Design Name: 
-// Module Name: controller
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
 module controller(
                   input clk,
@@ -320,8 +271,7 @@ module datapath(input  clk, reset,
 
 //_________________ fase de fetch
  wire [31:0] PCNextF, PCPlus4F; 
- wire [31:0] PCD, PCPlus4D;  // ✅ InstrD ya está como output, no redeclares
- 
+ wire [31:0] PCD, PCPlus4D;  
   // next PC logic
   flopr #(WIDTH) pcreg(
     .en(~StallF),
@@ -360,11 +310,6 @@ module datapath(input  clk, reset,
 // variables para execute
  wire [31:0] RD1E, RD2E, FRD1E, FRD2E, PCE, ImmExtE, PCPlus4E;
 
-/* Ya esta en la declaracion del modulo: 
- wire [4:0] RdE;  // ✅ 5 bits para registro destino
-
-//del hazard
- wire [4:0] Rs1D,Rs2D,Rs1E,Rs2E;*/
 
  assign Rs1D = InstrD[19:15];
  assign Rs2D = InstrD[24:20];
@@ -620,9 +565,9 @@ module flopr (input  clk, reset,en,
   
 endmodule
 
-// === File: fpu_decoder.v ===
+
 // Decodificador de operaciones FP
-// Convierte funct7 y funct3 en op_code para tu FPU
+// Convierte funct7 y funct3 en op_code para la FPU
 module fpu_dec(
     input [6:0] funct7,
     input [2:0] funct3,
@@ -659,19 +604,18 @@ module fpu_dec(
 
 endmodule
 
-// === File: hazard_unit.v ===
-  module hazard_unit(
+module hazard_unit(
     input [4:0] Rs1E, Rs2E, Rs1D, Rs2D, RdM, RdW, RdE,
     input RegWriteM, RegWriteW,
     input FPRegWriteM, FPRegWriteW,
     input ResultSrcE_bit0, PCSrcE,
     
     output reg [1:0] ForwardAE, ForwardBE,
-    output reg [1:0] ForwardAE_FP, ForwardBE_FP,  // ✅ NUEVO
+    output reg [1:0] ForwardAE_FP, ForwardBE_FP,  // NUEVO
     output wire StallF, StallD, FlushE, FlushD
 );
 
-// ✅ Forwarding ENTERO (excluye writes FP)
+// Forwarding ENTERO 
 always @(*) begin
     ForwardAE = 2'b00;
     ForwardBE = 2'b00;
@@ -688,7 +632,7 @@ always @(*) begin
         ForwardBE = 2'b01;
 end
 
-// ✅ Forwarding FP (solo writes FP)
+// Forwarding FP
 always @(*) begin
     ForwardAE_FP = 2'b00;
     ForwardBE_FP = 2'b00;
@@ -704,7 +648,6 @@ always @(*) begin
         ForwardBE_FP = 2'b01;
 end
 
-// Stalls (sin cambios)
 wire lwStall = (ResultSrcE_bit0 === 1'b1) ? ((Rs1D == RdE) | (Rs2D == RdE)) : 1'b0;
 assign StallF = lwStall;
 assign StallD = lwStall;
@@ -725,8 +668,6 @@ module imem(input  [31:0] a,
 
   assign rd = RAM[a[31:2]]; // word aligned
 endmodule
-
-// === File: maindec.v ===
   
 module maindec(
     input  [6:0] op,
@@ -745,7 +686,7 @@ module maindec(
             ResultSrc, Branch, ALUOp, Jump} = controls; 
 
     always @(*) begin
-        // ✅ DEFAULTS para evitar 'X'
+        // DEFAULTS para evitar 'X'
         FPOp = 1'b0;
         FPRegWrite = 1'b0;
         
@@ -757,7 +698,7 @@ module maindec(
             7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I-type ALU
             7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
             
-            7'b1010011: begin  // ✅ INSTRUCCIONES FP
+            7'b1010011: begin  // INSTRUCCIONES FP
                 controls = 11'b0_00_0_0_11_0_11_0;
                 FPOp = 1'b1;
                 FPRegWrite = 1'b1;
@@ -772,7 +713,6 @@ module maindec(
     end
 endmodule
 
-// === File: mux2.v ===
 module mux2 (input  [WIDTH-1:0] d0, d1, 
               input  s, 
               output [WIDTH-1:0] y);
@@ -782,7 +722,6 @@ module mux2 (input  [WIDTH-1:0] d0, d1,
   assign y = s ? d1 : d0; 
 endmodule
 
-// === File: mux3.v ===
 module mux3 (input  [WIDTH-1:0] d0, d1, d2,
               input  [1:0]       s, 
               output [WIDTH-1:0] y);
@@ -792,7 +731,6 @@ module mux3 (input  [WIDTH-1:0] d0, d1, d2,
   assign y = s[1] ? d2 : (s[0] ? d1 : d0); 
 endmodule
 
-// === File: pipeline.v ===
   
 module pipeline(input  clk, reset,
                 output [31:0] PCF,
@@ -813,7 +751,7 @@ module pipeline(input  clk, reset,
   wire FPRegWriteW, FPRegWriteM;
   wire [2:0] FPUControlE;
   
-  // 🛑 CABLES DE RIESGO (HAZARD)
+  // CABLES DE RIESGO (HAZARD)
   // Asegúrate de que NO estén duplicados ni sean de 1 bit si son buses
   wire [4:0] Rs1E, Rs2E, RdM, RdW, RdE, Rs1D, Rs2D;
   wire [1:0] ForwardAE, ForwardBE;
@@ -897,7 +835,7 @@ module regfile(input  clk,
 
   reg [31:0] rf[31:0]; 
 
-  // 🛑 ESTO ES LO QUE TE FALTA: INICIALIZAR A CERO
+  // ESTO ES LO QUE TE FALTA: INICIALIZAR A CERO
   initial begin :hola
     integer i;
     for (i=0; i<32; i=i+1) begin
@@ -919,6 +857,7 @@ module regfile(input  clk,
                ((a2 == a3) && we3) ? wd3 : rf[a2];
 
 endmodule
+
 module fp_regfile(
     input clk,
     input we3,
@@ -928,14 +867,14 @@ module fp_regfile(
 );
     reg [31:0] fp_regs [31:0];
     
-    // ✅ INICIALIZACIÓN EXPLÍCITA
+    // INICIALIZACIÓN EXPLÍCITA
     initial begin
         integer i;
         for (i = 0; i < 32; i = i + 1) begin
             fp_regs[i] = 32'h00000000;
         end
         
-        // ✅ Pre-cargar valores de prueba
+        // Pre-cargar valores de prueba
         fp_regs[1] = 32'h40200000; // f1 = 2.5
         fp_regs[2] = 32'h40400000; // f2 = 3.0
         fp_regs[3] = 32'h3F800000; // f3 = 1.0
@@ -960,29 +899,7 @@ module fp_regfile(
         end
     end
 endmodule
-// === File: reg_decode_to_execute.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/12/2025 08:44:52 PM
-// Design Name: 
-// Module Name: reg_decode_to_execute
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
-// falta agregar lo de hazard unit
 module reg_decode_to_execute (
     input             clk,
     input             reset,
@@ -1021,10 +938,6 @@ module reg_decode_to_execute (
         end
     end
 endmodule
-
-// === File: reg_decode_to_execute_control.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
 
 module reg_decode_to_execute_control (
     input             clk,
@@ -1074,14 +987,6 @@ module reg_decode_to_execute_control (
     end
 endmodule
 
-// === File: reg_execute_to_memory.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////////////////////////
-// Execute -> Memory pipeline register
-//////////////////////////////////////////////////////////////////////////////////
-
 module reg_execute_to_memory(
     input             clk,
     input             reset,
@@ -1121,10 +1026,6 @@ module reg_execute_to_memory(
 
 endmodule
 
-// === File: reg_execute_to_memory_control.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-
 module reg_execute_to_memory_control(
     input             clk,
     input             reset,
@@ -1161,14 +1062,6 @@ module reg_execute_to_memory_control(
     end
 
 endmodule
-
-// === File: reg_fetch_to_decode.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////////////////////////
-// Fetch -> Decode pipeline register (IF/ID)
-//////////////////////////////////////////////////////////////////////////////////
 
 module reg_fetch_to_decode(
     input             clk,
@@ -1212,14 +1105,6 @@ module reg_fetch_to_decode(
 
 endmodule
 
-// === File: reg_memory_to_writeback.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////////////////////////
-// Memory -> Writeback pipeline register
-//////////////////////////////////////////////////////////////////////////////////
-
 module reg_memory_to_writeback(
     input             clk,
     input             reset,
@@ -1261,10 +1146,6 @@ module reg_memory_to_writeback(
 
 endmodule
 
-// === File: reg_memory_to_writeback_control.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
-
 module reg_memory_to_writeback_control(
     input             clk,
     input             reset,
@@ -1295,10 +1176,6 @@ module reg_memory_to_writeback_control(
     end
 
 endmodule
-
-// === File: top.v ===
-  
-//////////////////////////////////////////////////////////////////////////////////
 
 module top(input  clk, reset, 
            output [31:0] WriteData, DataAdr, 
@@ -1336,15 +1213,7 @@ endmodule
 //MODULOS PARA EL FPU_TOP
 
 
-
-// ============================================================================
-// fpu_top - FP32 IEEE-754 - ALU de Punto Flotante puramente combinacional
-// ----------------------------------------------------------------------------
-// Integra operaciones de suma, resta, multiplicación, división, mínimo y máximo
-// de punto flotante de 32 bits, con soporte opcional de conversión 16-32 bits.
-// Todas las unidades funcionales son combinacionales.
-// ============================================================================
-    module fpu_top (
+   module fpu_top (
     input  wire [31:0] op_a,            // Operando A
     input  wire [31:0] op_b,            // Operando B
     input  wire [2:0]  op_code,         // 000 ADD, 001 SUB, 010 MUL, 011 DIV, 100 MIN, 101 MAX
@@ -1453,19 +1322,6 @@ endmodule
         
     endmodule
 
-
-// ============================================================================
-// fpu_add_fp32_vivado  -  FP32 IEEE-754  -  Lógica puramente combinacional
-// ----------------------------------------------------------------------------
-// Implementación combinacional de suma/resta de punto flotante de 32 bits.
-// La salida es inmediata respecto a la entrada.
-//
-// Parámetros:
-//   - op_sel: 0 = A + B (suma), 1 = A - B (resta)
-//
-// Flags: {invalid, div_by_zero, overflow, underflow, inexact}
-//   - div_by_zero = 0 en suma.
-// ============================================================================
 
 module fpu_add_fp32_vivado (
     input  wire        op_sel,       // 0 = add (A+B), 1 = sub (A-B)
@@ -1803,16 +1659,6 @@ module fpu_add_fp32_vivado (
 
 endmodule
 
-
-// ============================================================================
-// fpu_div_fp32_vivado  -  FP32 IEEE-754  -  Lógica puramente combinacional
-// ----------------------------------------------------------------------------
-// Implementación combinacional de la división de punto flotante de 32 bits.
-// Diseñado como golden-model para simulación (no optimizado/sintetizable).
-//
-// Flags: {invalid, div_by_zero, overflow, underflow, inexact}
-//   - div_by_zero = 1 cuando divisor = 0 y numerador finito != 0
-// ============================================================================
 
 module fpu_div_fp32_vivado (
     input  wire [31:0] a,            // Operando A (FP32) - numerador

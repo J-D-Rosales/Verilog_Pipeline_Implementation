@@ -9,25 +9,8 @@ _start:
     li x2, 3            # x2 = 3
     li x3, 10           # x3 = 10
     li x4, 2            # x4 = 2	
-# Inicializar registros de punto flotante (f1 - f4)
-    # Movemos la representación HEX a un registro entero y luego al FP
-    
-    # f1 = 2.5 (0x40200000)
-    li t0, 0x40200000
-    fmv.w.x f1, t0
-    
-    # f2 = 3.0 (0x40400000)
-    li t1, 0x40400000
-    fmv.w.x f2, t1
-    
-    # f3 = 1.0 (0x3F800000)
-    li t2, 0x3F800000
-    fmv.w.x f3, t2
-    
-    # f4 = 5.0 (0x40A00000)
-    li t3, 0x40A00000
-    fmv.w.x f4, t3
-	
+# Los registros de punto flotante (f1 - f4) se inicilizan en el fpu_regfile
+
 ADD   x5,  x1, x2      # 5 + 3 = 8
 SUB   x6,  x3, x4      # 10 - 2 = 8
 AND   x8,  x5, x6      # 8 & 8 = 8
