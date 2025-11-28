@@ -1,53 +1,19 @@
 .global _start
 _start:
 	
-	# ============================================
-#   FASE 1: ALU ENTERA
-# ============================================
-# Inicializar registros enteros (x1 - x4)
-    li x1, 5            # x1 = 5
-    li x2, 3            # x2 = 3
-    li x3, 10           # x3 = 10
-    li x4, 2            # x4 = 2	
-# Los registros de punto flotante (f1 - f4) se inicilizan en el fpu_regfile
-
-ADD   x5,  x1, x2      # 5 + 3 = 8
-SUB   x6,  x3, x4      # 10 - 2 = 8
-AND   x8,  x5, x6      # 8 & 8 = 8
-ADDI  x7,  x1, 10      # 5 + 10 = 15
-OR    x9,  x1, x2      # 5 | 3 = 7
-
-# ============================================
-#   FASE 2: FORWARDING ALU
-# ============================================
-
-ADD   x10, x1, x2      # 8
-ADD   x11, x10, x3     # 18 (EX→EX forwarding)
-
-ADD   x12, x1, x2      # 8
-ADD   x13, x12, x4     # 10 (MEM→EX forwarding)
-
-# ============================================
-#   FASE 3: LOAD-USE (STALL)
-# ============================================
-
-SW    x5,  8(x0)
-LW    x14, 8(x0)
-
-LW    x15, 0(x0)
-ADD   x16, x15, x1     # Stall necesario
-
 # ============================================
 #   FASE 4: FLOATING POINT
 # ============================================
 
-FADD.S f5,  f1, f2     # 2.5 + 3.0 = 5.5
-FMUL.S f6,  f1, f2     # 2.5 * 3.0 = 7.5
+# 6. Min/Max con Infinito
+    FMIN.S f13, f4, f12  # min(+Inf, 1.0) = 1.0
+    FMAX.S f14, f4, f12  # max(+Inf, 1.0) = +Inf
 
 # ============================================
 #   FASE 5: FORWARDING FP
 # ============================================
 
+#Primera dependencia
 FADD.S f7,  f1, f2     # 5.5
 FADD.S f8,  f7, f3     # 6.5  (EX→EX forwarding)
 

@@ -157,7 +157,11 @@ module controller(
 
   // ALUCOntrolE sale como output
   // ALUSrcE sale como output
-  assign ResultSrcE_bit0 = ResultSrcE[0];
+    // Detect 'load' specifically. Previously we forwarded ResultSrcE[0],
+    // but FP uses ResultSrc = 2'b11 which also has bit0=1 and caused
+    // unwanted lwStall/flush for FP operations. Make ResultSrcE_bit0
+    // true ONLY when ResultSrcE == 2'b01 (lw).
+    assign ResultSrcE_bit0 = (ResultSrcE == 2'b01) ? 1'b1 : 1'b0;
   
   reg_decode_to_execute_control reg_decode_to_execute_control_instance(
             .clk(clk),
@@ -349,7 +353,8 @@ fp_regfile fprf(
     .clr(FlushE),
     .RD1D(RD1D),
     .RD2D(RD2D),
-    .FRD1D(FRD1D), .FRD2D(FRD2D),  // NUEVO
+    .FRD1D(FRD1D), //Nuevo
+    .FRD2D(FRD2D),  // NUEVO
     .PCD(PCD),
     .RdD(InstrD[11:7]),  // ✅ 5 bits
     .ImmExtD(ImmExtD),
@@ -425,18 +430,18 @@ wire [31:0] ForwardDataW = FPRegWriteW ? FPResultW : ResultW;
 
 // Forwarding FP separado
 mux3 #(WIDTH) FPSrcAmux(
-    .d0(FRD1E),
-    .d1(FPResultW),
-    .d2(FPResultM),
-    .s(ForwardAE_FP),  // ✅ Señal independiente
+    .d0(FRD1E),//Normal
+    .d1(FPResultW),//Stalling
+    .d2(FPResultM),//Forwarding
+    .s(ForwardAE_FP),  // Señal independiente
     .y(FPSrcAE)
 );
 
 mux3 #(WIDTH) FPSrcBmux(
-    .d0(FRD2E),
-    .d1(FPResultW),
-    .d2(FPResultM),
-    .s(ForwardBE_FP),  // ✅ Señal independiente
+    .d0(FRD2E),//Normal
+    .d1(FPResultW), //Stalling 
+    .d2(FPResultM), //Forwarding
+    .s(ForwardBE_FP),  // Señal independiente
     .y(FPSrcBE)
 );
 
@@ -486,12 +491,12 @@ fpu_top fpu(
     .ALUResultM(ALUResultM),
     .FPResultM(FPResultM),      // NUEVO
     .PCPlus4M(PCPlus4M),
-    .RdM(RdM),  // ✅ 5 bits
+    .RdM(RdM),  
     .ReadDataW(ReadDataW),
     .ALUResultW(ALUResultW),
     .FPResultW(FPResultW),      // NUEVO
     .PCPlus4W(PCPlus4W),
-    .RdW(RdW)  // ✅ 5 bits
+    .RdW(RdW) 
   );
 
   // Mux para resultado ENTERO

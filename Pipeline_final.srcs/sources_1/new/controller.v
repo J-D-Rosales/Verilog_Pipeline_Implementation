@@ -87,7 +87,11 @@ module controller(
 
   // ALUCOntrolE sale como output
   // ALUSrcE sale como output
-  assign ResultSrcE_bit0 = ResultSrcE[0];
+  // Detect 'load' specifically. Previously we forwarded ResultSrcE[0],
+  // but FP uses ResultSrc = 2'b11 which also has bit0=1 and caused
+  // unwanted lwStall/flush for FP operations. Make ResultSrcE_bit0
+  // true ONLY when ResultSrcE == 2'b01 (lw).
+  assign ResultSrcE_bit0 = (ResultSrcE == 2'b01) ? 1'b1 : 1'b0;
   
   reg_decode_to_execute_control reg_decode_to_execute_control_instance(
             .clk(clk),

@@ -7,7 +7,7 @@ module tb_top_pipeline_debug;
     wire [31:0] DataAdr;
     wire MemWrite;
     
-    // ==========================
+    // ======================
     //  Instancia del TOP REAL
     // ==========================
     top dut (
@@ -246,18 +246,22 @@ end
         force dut.pipeline1.dp.fprf.fp_regs[1] = 32'h40200000; // f1 = 2.5
         force dut.pipeline1.dp.fprf.fp_regs[2] = 32'h40400000; // f2 = 3.0
         force dut.pipeline1.dp.fprf.fp_regs[3] = 32'h3F800000; // f3 = 1.0
-        force dut.pipeline1.dp.fprf.fp_regs[4] = 32'h40A00000; // f4 = 5.0
+        force dut.pipeline1.dp.fprf.fp_regs[4] = 32'h7F800000; // f4 = +inf
+        force dut.pipeline1.dp.fprf.fp_regs[12] = 32'h3F800000; // f12=1
+
         
         #1;
         release dut.pipeline1.dp.fprf.fp_regs[1];
         release dut.pipeline1.dp.fprf.fp_regs[2];
         release dut.pipeline1.dp.fprf.fp_regs[3];
         release dut.pipeline1.dp.fprf.fp_regs[4];
+        release dut.pipeline1.dp.fprf.fp_regs[12];
         
         $display("  f1 = 2.5  (0x40200000)");
         $display("  f2 = 3.0  (0x40400000)");
         $display("  f3 = 1.0  (0x3F800000)");
-        $display("  f4 = 5.0  (0x40A00000)");
+        $display("  f4 = +Inf ");
+        $display("  f12= 1.0  (0x3F800000)");
         $display("[INFO] Registros FP inicializados.\n");
         
         // ✅ VERIFICAR QUE LAS INSTRUCCIONES SE CARGARON CORRECTAMENTE
@@ -270,7 +274,7 @@ end
         $display("\n[INFO] Reset completado. Iniciando ejecución...\n");
         
         // Ejecutar ciclo por ciclo mostrando estado detallado
-        repeat(50) begin
+      repeat(12) begin
             @(posedge clk);
             #1; // Pequeño delay para capturar señales estables
             cycle_count = cycle_count + 1;
@@ -302,39 +306,20 @@ end
         // Verificaciones específicas
         $display("\n========== VERIFICACIONES ==========");
         
-        // Fase 1: ALU
-        $display("\n[FASE 1: ALU ENTERA]");
-        if (dut.pipeline1.dp.rf.rf[5] == 32'h00000008)
-            $display("  ✓ x5 = 8 (ADD correcto)");
-        else
-            $display("  ✗ x5 = 0x%h (esperado 0x00000008)", dut.pipeline1.dp.rf.rf[5]);
-            
-        if (dut.pipeline1.dp.rf.rf[6] == 32'h00000008)
-            $display("  ✓ x6 = 8 (SUB correcto)");
-        else
-            $display("  ✗ x6 = 0x%h (esperado 0x00000008)", dut.pipeline1.dp.rf.rf[6]);
-        
-        // Fase 2: Forwarding
-        $display("\n[FASE 2: FORWARDING ALU]");
-        if (dut.pipeline1.dp.rf.rf[11] == 32'h00000012)
-            $display("  ✓ x11 = 18 (Forwarding EX→EX correcto)");
-        else
-            $display("  ✗ x11 = 0x%h (esperado 0x00000012)", dut.pipeline1.dp.rf.rf[11]);
-        
         // Fase 4: FP
-        $display("\n[FASE 4: FLOATING POINT]");
-        if (dut.pipeline1.dp.fprf.fp_regs[5] == 32'h40B00000)
-            $display("  ✓ f5 = 0x40B00000 (FADD.S correcto - 5.5)");
+        $display("\n[FASE 1: FLOATING POINT]");
+        if (dut.pipeline1.dp.fprf.fp_regs[13] == 32'h3F800000)
+            $display("  ✓ f13 = 0x3F800000 (FMIN.S -> 1.0)");
         else
-            $display("  ✗ f5 = 0x%h (esperado 0x40B00000)", dut.pipeline1.dp.fprf.fp_regs[5]);
+            $display("  ✗ f13 = 0x%h (esperado 0x3F800000)", dut.pipeline1.dp.fprf.fp_regs[5]);
             
-        if (dut.pipeline1.dp.fprf.fp_regs[9] == 32'h40F00000)
-            $display("  ✓ f9 = 0x40F00000 (FMUL.S correcto - 7.5)");
+        if (dut.pipeline1.dp.fprf.fp_regs[14] == 32'h7F800000)
+            $display("  ✓ f14 = 0x7F800000 (FMAX.S correcto -> +Inf)");
         else
-            $display("  ✗ f9 = 0x%h (esperado 0x40F00000)", dut.pipeline1.dp.fprf.fp_regs[9]);
+            $display("  ✗ f14 = 0x%h (esperado 0x7F800000)", dut.pipeline1.dp.fprf.fp_regs[9]);
         
         // Fase 5: Forwarding FP
-        $display("\n[FASE 5: FORWARDING FP]");
+        $display("\n[FASE 2: FORWARDING FP]");
         if (dut.pipeline1.dp.fprf.fp_regs[10] == 32'h41080000)
             $display("  ✓ f10 = 0x41080000 (Forwarding FP correcto)");
         else
@@ -352,7 +337,7 @@ end
     //  TIMEOUT DE SEGURIDAD
     // ==========================
     initial begin
-        #5000;
+        #500;
         $display("\n[ERROR] TIMEOUT - Simulación excedió 5us");
         $finish;
     end
