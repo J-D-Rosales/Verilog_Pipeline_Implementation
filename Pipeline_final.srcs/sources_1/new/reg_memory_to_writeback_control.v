@@ -27,10 +27,12 @@ module reg_memory_to_writeback_control(
     // --------- CONTROL desde etapa M ---------
     input             RegWriteM,
     input      [1:0]  ResultSrcM,
+    input FPRegWriteM,  // NUEVO
 
     // --------- CONTROL hacia etapa W --------
     output reg        RegWriteW,
-    output reg [1:0]  ResultSrcW
+    output reg [1:0]  ResultSrcW,
+    output reg FPRegWriteW  // NUEVO
 );
 
     always @ (posedge clk or posedge reset) begin
@@ -38,12 +40,12 @@ module reg_memory_to_writeback_control(
             // CONTROL
             RegWriteW  <= 1'b0;
             ResultSrcW <= 2'b0;
-
+            FPRegWriteW <= 0; 
         end else begin
             // CONTROL
             RegWriteW  <= RegWriteM;
             ResultSrcW <= ResultSrcM;
-
+            FPRegWriteW <= FPRegWriteM;
         end
     end
 

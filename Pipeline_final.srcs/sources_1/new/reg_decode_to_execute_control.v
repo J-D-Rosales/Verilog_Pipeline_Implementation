@@ -35,6 +35,8 @@ module reg_decode_to_execute_control (
     input             BranchD,
     input      [2:0]  ALUControlD,
     input             ALUSrcD,
+    input FPRegWriteD,      // NUEVO
+    input [2:0] FPUControlD, // NUEVO
 
     // --------- CONTROL (hacia etapa E) --------
     output reg        RegWriteE,
@@ -43,28 +45,27 @@ module reg_decode_to_execute_control (
     output reg        JumpE,
     output reg        BranchE,
     output reg [2:0]  ALUControlE,
-    output reg        ALUSrcE
+    output reg        ALUSrcE,
+    output reg FPRegWriteE,      // NUEVO
+    output reg [2:0] FPUControlE // NUEVO
+
 );
 
-    always @ (posedge clk or posedge reset) begin
-        if (reset) begin
-            RegWriteE   <= 0; ResultSrcE  <= 0; MemWriteE   <= 0;
-            JumpE       <= 0; BranchE     <= 0; ALUControlE <= 0;
-            ALUSrcE     <= 0;
-        end 
-        else begin
-            // 🛑 LÓGICA DE FLUSH: Si hay flush, todo a 0 (NOP)
-            if (clr) begin
-                RegWriteE   <= 0; ResultSrcE  <= 0; MemWriteE   <= 0;
-                JumpE       <= 0; BranchE     <= 0; ALUControlE <= 0;
-                ALUSrcE     <= 0;
-            end 
-            else begin
-                // Funcionamiento normal
-                RegWriteE   <= RegWriteD; ResultSrcE  <= ResultSrcD; MemWriteE   <= MemWriteD;
-                JumpE       <= JumpD;     BranchE     <= BranchD;    ALUControlE <= ALUControlD;
-                ALUSrcE     <= ALUSrcD;
-            end
+    always @(posedge clk or posedge reset) begin
+        if (reset || clr) begin
+            // Reset/Flush: NOP
+            RegWriteE <= 0; ResultSrcE <= 2'b00; MemWriteE <= 0;
+            JumpE <= 0; BranchE <= 0; ALUControlE <= 3'b000;
+            ALUSrcE <= 0; 
+            FPRegWriteE <= 0;      // NUEVO
+            FPUControlE <= 3'b000; // NUEVO
+        end else begin
+            // Propagar señales
+            RegWriteE <= RegWriteD; ResultSrcE <= ResultSrcD; MemWriteE <= MemWriteD;
+            JumpE <= JumpD; BranchE <= BranchD; ALUControlE <= ALUControlD;
+            ALUSrcE <= ALUSrcD;
+            FPRegWriteE <= FPRegWriteD;      // NUEVO
+            FPUControlE <= FPUControlD;      // NUEVO
         end
     end
 endmodule

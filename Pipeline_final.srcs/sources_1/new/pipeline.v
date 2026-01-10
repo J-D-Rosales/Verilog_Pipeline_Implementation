@@ -1,4 +1,3 @@
-`timescale 1ns / 1ps
 
 module pipeline(input  clk, reset,
                 output [31:0] PCF,
@@ -14,11 +13,16 @@ module pipeline(input  clk, reset,
   wire [1:0] ResultSrcW, ImmSrcD; 
   wire [2:0] ALUControlE; 
   wire PCSrcE; 
+
+    // NUEVAS señales FP
+  wire FPRegWriteW, FPRegWriteM;
+  wire [2:0] FPUControlE;
   
-  // 🛑 CABLES DE RIESGO (HAZARD)
+  // CABLES DE RIESGO (HAZARD)
   // Asegúrate de que NO estén duplicados ni sean de 1 bit si son buses
   wire [4:0] Rs1E, Rs2E, RdM, RdW, RdE, Rs1D, Rs2D;
   wire [1:0] ForwardAE, ForwardBE;
+  wire [1:0] ForwardAE_FP, ForwardBE_FP; 
   wire StallF, StallD, FlushE, FlushD;
   wire ResultSrcE_bit0;
   
@@ -33,14 +37,19 @@ module pipeline(input  clk, reset,
     // CONEXIÓN CRÍTICA QUE PODRÍA FALTAR:
     .FlushE(FlushE), 
     
-    .op(InstrD[6:0]), .funct3(InstrD[14:12]), .funct7b5(InstrD[30]),
+    .op(InstrD[6:0]), .funct3(InstrD[14:12]), .funct7(InstrD[31:25]),
     .ZeroE(ZeroE),
     .ResultSrcW(ResultSrcW), .MemWriteM(MemWriteM),
     .PCSrcE(PCSrcE), .ALUSrcE(ALUSrcE), .RegWriteW(RegWriteW),
     .ImmSrcD(ImmSrcD), .ALUControlE(ALUControlE),
     
     .RegWriteM(RegWriteM),
-    .ResultSrcE_bit0(ResultSrcE_bit0)
+    .ResultSrcE_bit0(ResultSrcE_bit0),
+
+    // NUEVO: Control FP
+    .FPRegWriteW(FPRegWriteW),
+    .FPUControlE(FPUControlE),
+    .FPRegWriteM(FPRegWriteM)
   ); 
   
   // 2. INSTANCIA DEL DATAPATH
@@ -52,11 +61,16 @@ module pipeline(input  clk, reset,
     .ZeroE(ZeroE), .PCF(PCF), .InstrD(InstrD),
     .ALUResultM(ALUResultM), .WriteDataM(WriteDataM),
 
+        // NUEVO: Control FP
+    .FPRegWriteW(FPRegWriteW),
+    .FPUControlE(FPUControlE),
+    .FPRegWriteM(FPRegWriteM),   
     // Hazard Connections
     .StallF(StallF), .StallD(StallD), .FlushE(FlushE), .FlushD(FlushD),
     .Rs1D(Rs1D), .Rs2D(Rs2D), 
     .Rs1E(Rs1E), .Rs2E(Rs2E), .RdM(RdM), .RdW(RdW), .RdE(RdE),
-    .ForwardAE(ForwardAE), .ForwardBE(ForwardBE)
+    .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),
+    .ForwardAE_FP(ForwardAE_FP), .ForwardBE_FP(ForwardBE_FP) 
   );
   
   // 3. INSTANCIA DE HAZARD UNIT
@@ -64,10 +78,13 @@ module pipeline(input  clk, reset,
     .Rs1E(Rs1E), .Rs2E(Rs2E), .RdM(RdM), .RdW(RdW),
     .Rs1D(Rs1D), .Rs2D(Rs2D), .RdE(RdE),
     .PCSrcE(PCSrcE),
-    .RegWriteM(RegWriteM), .RegWriteW(RegWriteW),
+    .RegWriteM(RegWriteM),  // MODIFICADO: Considerar FP
+    .RegWriteW(RegWriteW),  // MODIFICADO: Considerar FP    
     .ResultSrcE_bit0(ResultSrcE_bit0),
-    
+    .FPRegWriteM(FPRegWriteM),  // NUEVO PARA FPU
+    .FPRegWriteW(FPRegWriteW), // NUEVO PARA FPU
     .ForwardAE(ForwardAE), .ForwardBE(ForwardBE),
+    .ForwardAE_FP(ForwardAE_FP), .ForwardBE_FP(ForwardBE_FP),
     .StallF(StallF), .StallD(StallD), 
     .FlushE(FlushE), .FlushD(FlushD)
   );
